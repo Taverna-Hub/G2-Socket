@@ -27,8 +27,7 @@ def sendMessage(client):
         print(chunk)
         client.sendall(f"{chunk}".encode())
 
-    # client.sendall("END".encode())
-
+    client.sendall("END".encode())
     print(chunks)
 
     return message    
@@ -39,9 +38,6 @@ def recieveMessage(client):
     buffer = []
 
     response = client.recv(1024).decode()
-
-        # if not chunk :
-        #     break
 
     print(response)
 

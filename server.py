@@ -25,32 +25,28 @@ def handShake():
 
 def reciveMessage(conn):
 
-    buffer = []
-    test = []
+    buffer = bytearray()
     while True:
-    # for i in range(2):
 
-        chunk = conn.recv(3).decode()
+        chunk = conn.recv(3)      
+        if not chunk:
+            break
+        buffer.extend(chunk)
+        if buffer.endswith(b'END'):
+            break
+
+    echo = buffer[:-3].decode('utf-8', errors='replace') 
+    print(echo)
+    return echo
 
 
+def sendMessage(conn, response):
 
-        buffer.append(chunk)
-        print(f"buffer: {buffer}")
-        if "".join(buffer).endswith("END"):
-            break    
-    
-    return ''.join(buffer)
-
-
-def sendMessage(conn, clientResp):
-
-    if clientResp == 'exit':
-        response = "Fechando conexão..."
+    if response.startswith('exit'):
+        conn.sendall(f"Fechando conexão...".encode())
     else: 
-        # response = input("s: ")
-        print(clientResp)
-    
-    conn.sendall(f"chegou aqui".encode())
+        # print(response)
+        conn.sendall(f"s: {response}".encode())
 
 
 def main():
@@ -59,11 +55,10 @@ def main():
 
     while True: 
         response = reciveMessage(conn)
-
-
-        if response == 'exit':
-            break
         sendMessage(conn, response)
+
+        if response.startswith('exit'):
+            break
 
     conn.close()
     server.close()
