@@ -27,7 +27,7 @@ def sendMessage(client):
         print(chunk)
         client.sendall(f"{chunk}".encode())
 
-    client.sendall('END'.encode())
+    # client.sendall("END".encode())
 
     print(chunks)
 
@@ -38,17 +38,15 @@ def recieveMessage(client):
 
     buffer = []
 
-    chunk = client.recv(1024).decode()
+    response = client.recv(1024).decode()
 
         # if not chunk :
         #     break
 
-    buffer.append(chunk)
-    print(f"s: {''.join(buffer)}")
+    print(response)
 
 
 def main():
-
     client = handShake()
 
     print(f"A conversa entre você e o servidor começa aqui :D")
