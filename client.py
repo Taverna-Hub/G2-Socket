@@ -23,7 +23,22 @@ HOST = "localhost"
 PORT = 3000
 
 
+def calcChecksum(data: bytes) -> int:
+    if len(data) % 2 != 0:
+        data += b"\x00"
+
+    checksum = 0
+    for i in range(0, len(data), 2):
+        word = (data[i] << 8) + data[i + 1]
+        checksum += word
+        checksum = (checksum & 0xFFFF) + (checksum >> 16)
+
+    checksum = ~checksum & 0xFFFF
+    return checksum
+
+
 def mountPackage(message, seq):
+    checksum = calcChecksum(f"{message}{seq}")
     return Package(message=message, seq=seq, bytesData=len(message.encode("utf-8")))
 
 
