@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 # Checklist
-# ○ Soma de verificação (não feito)
+# ○ Soma de verificação (feito)
 # ○ Temporizador (não feito)
 # ○ Número de sequência (feito)
 # ○ Reconhecimento (feito)
@@ -38,8 +38,8 @@ def calcChecksum(data: bytes) -> int:
 
 
 def mountPackage(message, seq):
-    checksum = calcChecksum(f"{message}{seq}")
-    return Package(message=message, seq=seq, bytesData=len(message.encode("utf-8")))
+    checksum = calcChecksum(f"{message}{seq}".encode())
+    return Package(message=message, seq=seq, bytesData=len(message.encode("utf-8")), checksum=checksum)
 
 
 def handShake():

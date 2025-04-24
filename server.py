@@ -55,7 +55,6 @@ def reciveMessage(conn):
     ackNumber = int(seq) + int(bytesData)
     print(f"Enviando ACK = {ackNumber}")
     conn.sendall(f"ACK = {ackNumber}".encode())
-
     return message
 
 
@@ -68,6 +67,11 @@ def main():
         response = reciveMessage(conn)
 
         wholeChunks.append(response)
+        
+        if wholeChunks[-1] == "":
+            print(f"c: {"".join(wholeChunks)}")
+            wholeChunks = []
+
         if "".join(wholeChunks).endswith("exit"):
             break
 
