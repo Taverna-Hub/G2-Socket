@@ -1,7 +1,16 @@
 import socket
+from dataclasses import dataclass
 
 HOST = "localhost"
 PORT = 3000
+
+
+@dataclass
+class Package:
+    message: str
+    seq: int
+    bytesData: int
+    checksum: bytes
 
 
 def handShake():
@@ -23,45 +32,48 @@ def handShake():
 
     return server, conn
 
+
 def reciveMessage(conn):
+    chunk = conn.recv(1024).decode()
 
-    buffer = bytearray()
-    while True:
+    if chunk == "END":
+        print("Fim da transmissão.")
 
-        chunk = conn.recv(3)      
-        if not chunk:
-            break
-        buffer.extend(chunk)
-        if buffer.endswith(b'END'):
-            break
+    chunk = chunk.split("|")
 
-    echo = buffer[:-3].decode('utf-8', errors='replace') 
-    print(echo)
-    return echo
+    if len(chunk) < 3:
+        return ""
 
+    message = chunk[0].strip()
+    seq = chunk[1].strip()
+    bytesData = chunk[2].strip()
 
-def sendMessage(conn, response):
+    print(f"Message: {message}")
+    print(f"Sequência: {seq}")
+    print(f"Bytes Data: {bytesData}")
 
-    if response.startswith('exit'):
-        conn.sendall(f"Fechando conexão...".encode())
-    else: 
-        # print(response)
-        conn.sendall(f"s: {response}".encode())
+    ackNumber = int(seq) + int(bytesData)
+    print(f"Enviando ACK = {ackNumber}")
+    conn.sendall(f"ACK = {ackNumber}".encode())
+
+    return message
 
 
 def main():
 
     server, conn = handShake()
 
-    while True: 
+    wholeChunks = []
+    while True:
         response = reciveMessage(conn)
-        sendMessage(conn, response)
 
-        if response.startswith('exit'):
+        wholeChunks.append(response)
+        if "".join(wholeChunks).endswith("exit"):
             break
 
     conn.close()
     server.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
