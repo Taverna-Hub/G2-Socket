@@ -16,11 +16,11 @@ class Package:
     message: str
     seq: int
     bytesData: int
-    checksum: bytes
+    checksum: int
 
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 
 
 def calcChecksum(data: bytes) -> int:
@@ -38,7 +38,7 @@ def calcChecksum(data: bytes) -> int:
 
 
 def mountPackage(message, seq):
-    checksum = calcChecksum(f"{message}{seq}".encode())
+    checksum = calcChecksum(message.encode())
     return Package(message=message, seq=seq, bytesData=len(message.encode("utf-8")), checksum=checksum)
 
 
@@ -59,14 +59,13 @@ def handShake():
 
 def sendMessage(client):
     message = input("c: ")
-
     chunks = [message[i : i + 3] for i in range(0, len(message), 3)]
 
     seq = 0
-
     for chunk in chunks:
         package = mountPackage(chunk, seq)
-        client.sendall(f"{package.message}|{package.seq}|{package.bytesData}".encode())
+
+        client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
 
         expectedAckNumber = package.seq + package.bytesData
 
@@ -76,6 +75,7 @@ def sendMessage(client):
             if ack == f"ACK = {expectedAckNumber}":
                 break
             print(f"Esperando ACK correto: ACK = {expectedAckNumber}")
+            client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
 
         seq = expectedAckNumber
 

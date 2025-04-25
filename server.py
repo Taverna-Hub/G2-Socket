@@ -2,7 +2,7 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 
 
 @dataclass
@@ -11,6 +11,7 @@ class Package:
     seq: int
     bytesData: int
     checksum: bytes
+
 
 
 def handShake():
@@ -30,50 +31,82 @@ def handShake():
 
     conn.sendall("Configurações aplicadas com sucesso".encode())
 
-    return server, conn
+    return server, conn, tipo_operacao, tamanho_maximo
 
+def calcChecksum(data: bytes) -> int:
+    if len(data) % 2 != 0:
+        data += b"\x00"
+
+    checksum = 0
+    for i in range(0, len(data), 2):
+        word = (data[i] << 8) + data[i + 1]
+        checksum += word
+        checksum = (checksum & 0xFFFF) + (checksum >> 16)
+
+    checksum = ~checksum & 0xFFFF
+    return checksum
+
+def validateChecksum(data: bytes, received_checksum: int) -> bool:
+    calculated = calcChecksum(data)
+    return calculated == received_checksum
 
 def reciveMessage(conn):
-    chunk = conn.recv(1024).decode()
+    fullmessage = []
+    while True:
+        chunk = conn.recv(1024).decode()
 
-    if chunk == "END":
-        print("Fim da transmissão.")
+        if chunk == "END":
+            print("Fim da transmissão.")
+            break
 
-    chunk = chunk.split("|")
+        try:
+            message, seq, bytesData, checksum = chunk.split("|")
+            message = message
+            seq = int(seq.strip())
+            bytesData = int(bytesData.strip())
+            checksum = int(checksum.strip())
 
-    if len(chunk) < 3:
-        return ""
+            print(f"Message: {message}")
+            print(f"Sequência: {seq}")
+            print(f"Bytes Data: {bytesData}")
+            print(f"Checksum: {checksum}")
 
-    message = chunk[0].strip()
-    seq = chunk[1].strip()
-    bytesData = chunk[2].strip()
+            
+            ackNumber = seq
 
-    print(f"Message: {message}")
-    print(f"Sequência: {seq}")
-    print(f"Bytes Data: {bytesData}")
+            isChecksumValid = validateChecksum(message.encode(), checksum)
+            # print(isChecksumValid)
+            if isChecksumValid:
+                fullmessage.append(message)
+                ackNumber = seq + bytesData
 
-    ackNumber = int(seq) + int(bytesData)
-    print(f"Enviando ACK = {ackNumber}")
-    conn.sendall(f"ACK = {ackNumber}".encode())
-    return message
+            else:
+                print("Checksum inválido!")
+
+            print(f"Enviando ACK = {ackNumber}")
+            conn.sendall(f"ACK = {ackNumber}".encode())
+
+        except Exception as e:
+            print(f"Erro ao processar chunk: {chunk}, erro: {e}")
+
+    return ''.join(fullmessage)
 
 
 def main():
 
-    server, conn = handShake()
+    server, conn, tipo_operacao, tamanho_maximo = handShake()
 
     wholeChunks = []
     while True:
-        response = reciveMessage(conn)
+        message = reciveMessage(conn=conn)
 
-        wholeChunks.append(response)
-        
-        if wholeChunks[-1] == "":
-            print(f"c: {"".join(wholeChunks)}")
-            wholeChunks = []
 
-        if "".join(wholeChunks).endswith("exit"):
+
+        if message == 'exit':
             break
+        
+        if message:
+            print(message)
 
     conn.close()
     server.close()
