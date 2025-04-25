@@ -52,44 +52,63 @@ def validateChecksum(data: bytes, received_checksum: int) -> bool:
 
 def reciveMessage(conn):
     fullmessage = []
+    expectedSeq = 0
+    BUFFER = {}
+    text_buffer = "" 
     while True:
+
+
         chunk = conn.recv(1024).decode()
+        
+        text_buffer += chunk
 
-        if chunk == "END":
-            print("Fim da transmissão.")
-            break
+        while "\n" in text_buffer:
+            line, text_buffer = text_buffer.split("\n", 1)
 
-        try:
-            message, seq, bytesData, checksum = chunk.split("|")
-            message = message
-            seq = int(seq.strip())
-            bytesData = int(bytesData.strip())
-            checksum = int(checksum.strip())
+            if line == "END":
+                print("Fim da transmissão.")
+                return ''.join(fullmessage)
 
-            print(f"Message: {message}")
-            print(f"Sequência: {seq}")
-            print(f"Bytes Data: {bytesData}")
-            print(f"Checksum: {checksum}")
+            try:
+                message, seq, bytesData, checksum = line.split("|")
+                seq = int(seq.strip())
+                bytesData = int(bytesData.strip())
+                checksum = int(checksum.strip())
 
-            
-            ackNumber = seq
+                print(f"Message: {message}")
+                print(f"Sequência: {seq}")
+                print(f"Bytes Data: {bytesData}")
+                print(f"Checksum: {checksum}")
 
-            isChecksumValid = validateChecksum(message.encode(), checksum)
-            # print(isChecksumValid)
-            if isChecksumValid:
-                fullmessage.append(message)
-                ackNumber = seq + bytesData
+                
+                isChecksumValid = validateChecksum(message.encode(), checksum)
+                
 
-            else:
-                print("Checksum inválido!")
+                # print(isChecksumValid)
+                if isChecksumValid:
+                    if seq == expectedSeq:
+                        fullmessage.append(message)
+                        expectedSeq = seq + bytesData
 
-            print(f"Enviando ACK = {ackNumber}")
-            conn.sendall(f"ACK = {ackNumber}".encode())
+                        while expectedSeq in BUFFER:
+                            fullmessage.append(BUFFER[expectedSeq])
+                            del BUFFER[expectedSeq]
+                            expectedSeq += len(fullmessage[-1])
 
-        except Exception as e:
-            print(f"Erro ao processar chunk: {chunk}, erro: {e}")
+                    elif seq > expectedSeq:
+                            BUFFER[seq] = message
+                    ackNumber = seq + bytesData 
+                else:
+                    print("Checksum inválido!")
+                    ackNumber = seq 
 
-    return ''.join(fullmessage)
+
+                print(f"Enviando ACK = {ackNumber}")
+                conn.sendall(f"ACK = {ackNumber}\n".encode())
+
+            except Exception as e:
+                print(f"Erro ao processar chunk: {chunk}, erro: {e}")
+
 
 
 def main():

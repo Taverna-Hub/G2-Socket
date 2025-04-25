@@ -1,5 +1,6 @@
 import socket
 import select
+import time
 from dataclasses import dataclass
 
 
@@ -8,9 +9,10 @@ from dataclasses import dataclass
 # ○ Temporizador (feito)
 # ○ Número de sequência (feito)
 # ○ Reconhecimento (feito)
-# ○ Reconhecimento negativo (não feito - Entrega 3)
-# ○ Janela, paralelismo (não feito)
-# ○ escolher modo de envio lotes e sequencial (não feito)
+# ○ Reconhecimento negativo (não feito - Entrega 3?)
+# ○ Janela, paralelismo (feito)
+# ○ escolher modo de envio lotes e sequencial (feito)
+# ○ tornar tamanho maximo util (não feito)
 
 
 @dataclass
@@ -23,6 +25,7 @@ class Package:
 
 HOST = "localhost"
 PORT = 3001
+MAX_WINDOW_SIZE = 5
 
 
 def calcChecksum(data: bytes) -> int:
@@ -47,7 +50,7 @@ def mountPackage(message, seq):
 def handShake():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((HOST, PORT))
-
+    print("escolha o modo de envio: Sequencial [1] em lotes [2]")
     tipo_operacao = input("Digite o modo de operação: ")
     tamanho_maximo = input("Digite o tamanho máximo: ")
 
@@ -56,52 +59,105 @@ def handShake():
     resposta = client.recv(1024).decode()
     print(f"Resposta do servidor: {resposta}")
 
-    return client
+    return client, tipo_operacao
 
 
-def sendMessage(client):
+def sendMessageSequential(client):
     message = input("c: ")
-    chunks = [message[i : i + 3] for i in range(0, len(message), 3)]
-
+    chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     seq = 0
     TIMEOUT = 2
+
     for chunk in chunks:
         package = mountPackage(chunk, seq)
-
-
-        expectedAckNumber = package.seq + package.bytesData
+        expectedAck = seq + package.bytesData
 
         while True:
             print(f"Enviando pacote: {package.seq}")
-            client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
+            client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode())
 
             ready = select.select([client], [], [], TIMEOUT)
             if ready[0]:
-                ack = client.recv(1024).decode()    
+                ack = client.recv(1024).decode()
                 print(f"ACK recebido: {ack}")
 
-                if ack == f"ACK = {expectedAckNumber}":
-
+                if ack.strip() == f"ACK = {expectedAck}":
                     break
 
-                print(f"Esperando ACK correto: ACK = {expectedAckNumber}")
-                client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
+            print(f"Nenhum ACK ou ACK incorreto. Reenviando pacote {package.seq}...")
 
-        seq = expectedAckNumber
+        seq = expectedAck
 
-    client.sendall("END".encode())
+    client.sendall("END\n".encode())
+    print("Mensagem enviada:", message)
+    return message
+
+
+def sendMessageParallel(client, window_size):
+    message = input("c: ")
+    chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
+    TIMEOUT = 2
+    seq = 0
+
+    base = 0
+    next_seq = 0
+    pending = {}
+    total_chunks = len(chunks)
+
+    while base < total_chunks:
+
+        while next_seq < base + window_size and next_seq < total_chunks:
+            
+            chunk = chunks[next_seq]
+            package = mountPackage(chunk, seq)
+            expected_ack = seq + package.bytesData
+
+            print(f"Enviando pacote: {package.seq}")
+            client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode())
+
+            pending[expected_ack] = (package, time.time())
+            seq = expected_ack
+            next_seq += 1
+
+        ready = select.select([client], [], [], TIMEOUT)
+        if ready[0]:
+            data = client.recv(1024).decode().strip()
+            lines = data.split("\n")
+            for line in lines:
+                print(f"ACK recebido: {line}")
+                if line.startswith("ACK = "):
+                    ack_num = int(line.split("=")[1].strip())
+
+                    keys = sorted(pending.keys())
+                    for key in keys:
+                        if key <= ack_num:
+                            del pending[key]
+                            base += 1
+                        else:
+                            break
+        else:
+            now = time.time()
+            for ack_num, (pkg, send_time) in list(pending.items()):
+                if now - send_time >= TIMEOUT:
+                    print(f"Timeout! Reenviando pacote: {pkg.seq}")
+                    client.sendall(f"{pkg.message}|{pkg.seq}|{pkg.bytesData}|{pkg.checksum}\n".encode())
+                    pending[ack_num] = (pkg, time.time())
+
+    client.sendall("END\n".encode())
     print("Mensagem enviada:", message)
     return message
 
 
 def main():
-    client = handShake()
+    client, tipo_operacao = handShake()
 
     print(f"A conversa entre você e o servidor começa aqui :D")
 
     while True:
-        message = sendMessage(client)
-
+        if tipo_operacao == "1":
+            message = sendMessageSequential(client)
+        elif tipo_operacao == '2':
+            message = sendMessageParallel(client, MAX_WINDOW_SIZE)
         if message == "exit":
             break
 
