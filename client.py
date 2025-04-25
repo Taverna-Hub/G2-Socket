@@ -1,14 +1,16 @@
 import socket
+import select
 from dataclasses import dataclass
 
 
 # Checklist
 # ○ Soma de verificação (feito)
-# ○ Temporizador (não feito)
+# ○ Temporizador (feito)
 # ○ Número de sequência (feito)
 # ○ Reconhecimento (feito)
 # ○ Reconhecimento negativo (não feito - Entrega 3)
 # ○ Janela, paralelismo (não feito)
+# ○ escolher modo de envio lotes e sequencial (não feito)
 
 
 @dataclass
@@ -62,20 +64,28 @@ def sendMessage(client):
     chunks = [message[i : i + 3] for i in range(0, len(message), 3)]
 
     seq = 0
+    TIMEOUT = 2
     for chunk in chunks:
         package = mountPackage(chunk, seq)
 
-        client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
 
         expectedAckNumber = package.seq + package.bytesData
 
         while True:
-            ack = client.recv(1024).decode()
-            print(f"ACK recebido: {ack}")
-            if ack == f"ACK = {expectedAckNumber}":
-                break
-            print(f"Esperando ACK correto: ACK = {expectedAckNumber}")
+            print(f"Enviando pacote: {package.seq}")
             client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
+
+            ready = select.select([client], [], [], TIMEOUT)
+            if ready[0]:
+                ack = client.recv(1024).decode()    
+                print(f"ACK recebido: {ack}")
+
+                if ack == f"ACK = {expectedAckNumber}":
+
+                    break
+
+                print(f"Esperando ACK correto: ACK = {expectedAckNumber}")
+                client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}".encode())
 
         seq = expectedAckNumber
 
