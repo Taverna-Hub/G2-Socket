@@ -50,10 +50,20 @@ def mountPackage(message, seq):
 def handShake():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((HOST, PORT))
-    print("escolha o modo de envio: Sequencial [1] em lotes [2]")
-    tipo_operacao = input("Digite o modo de operação: ")
+    print("Escolha o modo de envio: Sequencial [1] em lotes [2]\n")
+    while True:
+        tipo_operacao = input("Digite o modo de operação: ")
+        if tipo_operacao not in ["1", "2"]:
+            print("Modo de operação inválido, tente novamente.")
+            continue
+        else:
+            break
+    print(f"Você escolheu o modo {tipo_operacao}\n")
     tamanho_maximo = input("Digite o tamanho máximo: ")
-    window_size = 5
+    window_size = int(input("Digite o tamanho da janela: "))
+    if window_size > MAX_WINDOW_SIZE:
+        print(f"Janela máxima é {MAX_WINDOW_SIZE}, ajustando para {MAX_WINDOW_SIZE}...")
+        window_size = MAX_WINDOW_SIZE
     client.sendall(f"{tipo_operacao},{tamanho_maximo},{window_size}".encode())
 
     resposta = client.recv(1024).decode()
@@ -95,7 +105,7 @@ def sendMessageSequential(client,tamanho_maximo):
     return message
 
 
-def sendMessageParallel(client, tamanho_maximo):
+def sendMessageParallel(client, tamanho_maximo, window_size):
     message = input("c: ")
     chunks = [message[i:i + tamanho_maximo] for i in range(0, len(message), tamanho_maximo)]
     TIMEOUT = 2
@@ -104,8 +114,6 @@ def sendMessageParallel(client, tamanho_maximo):
     next_seq = 0
     pending = {}
     total_chunks = len(chunks)
-    window_size = 52
-    print(f"Tamanho da janela: {window_size}")
     while base < total_chunks:
 
         while next_seq < base + window_size and next_seq < total_chunks:
@@ -159,13 +167,13 @@ def sendMessageParallel(client, tamanho_maximo):
 def main():
     client, tipo_operacao, tamanho_maximo, window_size = handShake()
 
-    print(f"A conversa entre você e o servidor começa aqui :D")
+    print(f"\n A conversa entre você e o servidor começa aqui :D")
 
     while True:
         if tipo_operacao == "1":
             message = sendMessageSequential(client,tamanho_maximo)
         elif tipo_operacao == '2':
-            message = sendMessageParallel(client, tamanho_maximo)
+            message = sendMessageParallel(client, tamanho_maximo, window_size)
         if message == "exit":
             break
 
