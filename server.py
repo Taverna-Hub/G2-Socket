@@ -24,14 +24,14 @@ def handShake():
     print(f"Conectado por {addr}")
 
     dados = conn.recv(1024).decode()
-    tipo_operacao, tamanho_maximo = dados.split(",")
+    tipo_operacao, tamanho_maximo, window_size = dados.split(",")
     print(
-        f"Configurações recebidas do cliente: Modo de operação = {tipo_operacao}, Tamanho máximo = {tamanho_maximo}"
+        f"Configurações recebidas do cliente: Modo de operação = {tipo_operacao}, Tamanho máximo = {tamanho_maximo}, Janela = {window_size}"
     )
 
     conn.sendall("Configurações aplicadas com sucesso".encode())
 
-    return server, conn, tipo_operacao, tamanho_maximo
+    return server, conn, tipo_operacao, int(tamanho_maximo),int(window_size)
 
 def calcChecksum(data: bytes) -> int:
     if len(data) % 2 != 0:
@@ -100,7 +100,8 @@ def reciveMessage(conn):
                     ackNumber = seq + bytesData 
                 else:
                     print("Checksum inválido!")
-                    ackNumber = seq 
+                    conn.sendall(f"NAK = {seq}\n".encode())
+                    continue
 
 
                 print(f"Enviando ACK = {ackNumber}")
@@ -113,12 +114,11 @@ def reciveMessage(conn):
 
 def main():
 
-    server, conn, tipo_operacao, tamanho_maximo = handShake()
+    server, conn, tipo_operacao, tamanho_maximo, window_size = handShake()
 
     wholeChunks = []
     while True:
         message = reciveMessage(conn=conn)
-
 
 
         if message == 'exit':
