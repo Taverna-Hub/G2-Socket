@@ -2,7 +2,7 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 
 # Checklist
 # ○ Printar o timer
@@ -69,6 +69,8 @@ def reciveSelective(conn):
             line, text_buffer = text_buffer.split("\n", 1)
 
             if line == "END":
+                print("=-"*30)
+
                 print("Fim da transmissão.")
                 return ''.join(fullmessage)
 
@@ -77,7 +79,7 @@ def reciveSelective(conn):
                 seq = int(seq.strip())
                 bytesData = int(bytesData.strip())
                 checksum = int(checksum.strip())
-
+                print("=-"*30)
                 print(f"Message: {message}")
                 print(f"Sequência: {seq}")
                 print(f"Bytes Data: {bytesData}")
@@ -105,7 +107,7 @@ def reciveSelective(conn):
                     conn.sendall(f"NAK = {seq}\n".encode())
                     continue
 
-
+                
                 print(f"Enviando ACK = {ackNumber}")
                 conn.sendall(f"ACK = {ackNumber}\n".encode())
 
@@ -115,10 +117,9 @@ def reciveSelective(conn):
 def reciveGBN(conn):
     fullmessage = []
     expectedSeq = 0
-    BUFFER = {}
-    text_buffer = "" 
     while True:
         packages = conn.recv(1024).decode()
+        print("=-"*30)
         print(packages)
         packages = packages.strip()
         packages_list = packages.split('\n')
@@ -129,13 +130,16 @@ def reciveGBN(conn):
             if chunk == "END":
                 print("Fim da transmissão.")
                 return ''.join(fullmessage)
-            print(chunk)
+            # print(chunk)
             message, seq, bytesData, checksum = chunk.split('|')
             seq = int(seq.strip())
             bytesData = int(bytesData.strip())
             checksum = int(checksum.strip())
-            print(f"me: {message}, seq: {seq}, bytes: {bytesData}, checksum:{checksum}\n")
-            
+            print(f"mensagem: {message}")
+            print(f"seq: {seq}")
+            print(f"bytes: {bytesData}")
+            print(f"checksum: {checksum}")
+            print("--"*30)
             isChecksumValid = validateChecksum(message.encode(), checksum)
 
             if isChecksumValid:
