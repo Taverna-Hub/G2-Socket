@@ -24,7 +24,7 @@ class Package:
 
 
 HOST = "localhost"
-PORT = 3001
+PORT = 3000
 MAX_WINDOW_SIZE = 5
 
 
@@ -72,9 +72,9 @@ def handShake():
     return client, tipo_operacao, int(tamanho_maximo), int(window_size)
 
 
-def sendMessageSequential(client,tamanho_maximo):
+def sendMessageSequential(client):
     message = input("c: ")
-    chunks = [message[i:i + tamanho_maximo] for i in range(0, len(message), tamanho_maximo)]
+    chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     seq = 0
     TIMEOUT = 2
 
@@ -105,9 +105,9 @@ def sendMessageSequential(client,tamanho_maximo):
     return message
 
 
-def sendMessageParallel(client, tamanho_maximo, window_size):
+def sendMessageParallel(client, window_size):
     message = input("c: ")
-    chunks = [message[i:i + tamanho_maximo] for i in range(0, len(message), tamanho_maximo)]
+    chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     TIMEOUT = 2
     seq = 0
     base = 0
@@ -171,9 +171,9 @@ def main():
 
     while True:
         if tipo_operacao == "1":
-            message = sendMessageSequential(client,tamanho_maximo)
+            message = sendMessageSequential(client)
         elif tipo_operacao == '2':
-            message = sendMessageParallel(client, tamanho_maximo, window_size)
+            message = sendMessageParallel(client, window_size)
         if message == "exit":
             break
 
