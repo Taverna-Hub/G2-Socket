@@ -118,11 +118,13 @@ def reciveGBN(conn):
     BUFFER = {}
     text_buffer = "" 
     while True:
-        packages = conn.recv(1024).decode()
-        print(packages)
-        packages = packages.strip()
-        packages_list = packages.split('\n')
         
+        package = conn.recv(1024).decode()
+
+        package = package.rstrip('\n')
+        package = package.strip('[]')
+
+        packages_list = [ line for line in package.split('\n') if line ]
 
 
         for chunk in packages_list:

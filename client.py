@@ -110,8 +110,6 @@ def sendMessageSequential(client, message):
 def sendMessageParallel(client, message, window_size):
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
 
-    # [5] > 5 -> 2 listas
-
     pending = {}
     seq = 0
     expectedAck = seq
@@ -137,7 +135,8 @@ def sendMessageParallel(client, message, window_size):
         print(len(pkg_list))
         print(pkg_list)
         batch = "".join(pkg_list)
-        client.sendall(batch.encode())
+        # client.sendall(batch.encode())
+        client.sendall(f"[{batch}]".encode())
 
         last_pkg = pkg_list[-1]
         last_seq = int(last_pkg.split('|')[1])
@@ -195,7 +194,7 @@ def checkInput(tamanho_maximo):
 def main():
     client, tipo_operacao, tamanho_maximo, window_size = handShake()
 
-    print(f"\n A conversa entre você e o servidor começa aqui :D")
+    print(f"\n A conversa entre você e o servidor começa aqui! \nPara sair do texto escreva exit ")
 
     while True:
         message = checkInput(tamanho_maximo)
