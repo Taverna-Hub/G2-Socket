@@ -4,6 +4,9 @@ from dataclasses import dataclass
 HOST = "localhost"
 PORT = 3000
 
+# Checklist
+# ○ Printar o timer
+# ○ Receber go-back-n corretamente
 
 @dataclass
 class Package:

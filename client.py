@@ -14,6 +14,8 @@ from dataclasses import dataclass
 # ○ escolher modo de envio lotes e sequencial (feito)
 # ○ tornar tamanho maximo util (feito)
 
+# ○ fazer os comentarios adicionados (não feito)
+
 
 @dataclass
 class Package:
@@ -51,6 +53,7 @@ def handShake():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((HOST, PORT))
     print("Escolha o modo de envio: Sequencial [1] em lotes [2]\n")
+    # sequencial -> repetição seletiva | em lotes -> go back n
     while True:
         tipo_operacao = input("Digite o modo de operação: ")
         if tipo_operacao not in ["1", "2"]:
@@ -59,9 +62,9 @@ def handShake():
         else:
             break
     print(f"Você escolheu o modo {tipo_operacao}\n")
-    tamanho_maximo = input("Digite o tamanho máximo: ")
+    tamanho_maximo = input("Digite o tamanho máximo: ") 
     window_size = int(input("Digite o tamanho da janela: "))
-    if window_size > MAX_WINDOW_SIZE:
+    if window_size > MAX_WINDOW_SIZE: #window size vai ser setado | sem cliente enviar
         print(f"Janela máxima é {MAX_WINDOW_SIZE}, ajustando para {MAX_WINDOW_SIZE}...")
         window_size = MAX_WINDOW_SIZE
     client.sendall(f"{tipo_operacao},{tamanho_maximo},{window_size}".encode())
@@ -71,9 +74,10 @@ def handShake():
 
     return client, tipo_operacao, int(tamanho_maximo), int(window_size)
 
-
-def sendMessageSequential(client):
-    message = input("c: ")
+# sequential -> repetição seletiva
+def sendMessageSequential(client, message):
+    # message = input("c: ")
+    # message = checkInput(tamanho_maximo)
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     seq = 0
     TIMEOUT = 2
@@ -104,9 +108,9 @@ def sendMessageSequential(client):
     print("Mensagem enviada:", message)
     return message
 
-
-def sendMessageParallel(client, window_size):
-    message = input("c: ")
+#go bacn n -> 1 timer, 1 ack, 1 lista de coisas
+def sendMessageParallel(client, message, window_size):
+    # message = input("c: ")
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     TIMEOUT = 2
     seq = 0
@@ -163,6 +167,17 @@ def sendMessageParallel(client, window_size):
     print("Mensagem enviada:", message)
     return message
 
+def checkInput(tamanho_maximo):
+    while True:
+        message = input("c: ")
+
+        if len(message) > tamanho_maximo:
+            print(f"Tamanho de pensagem estourado. Por favor escreva a mensagem até {tamanho_maximo}.")
+        else:
+            break
+    
+    return message
+    
 
 def main():
     client, tipo_operacao, tamanho_maximo, window_size = handShake()
@@ -170,10 +185,11 @@ def main():
     print(f"\n A conversa entre você e o servidor começa aqui :D")
 
     while True:
+        message = checkInput(tamanho_maximo)
         if tipo_operacao == "1":
-            message = sendMessageSequential(client)
+            message = sendMessageSequential(client, message)
         elif tipo_operacao == '2':
-            message = sendMessageParallel(client, window_size)
+            message = sendMessageParallel(client, message, window_size)
         if message == "exit":
             break
 
