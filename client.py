@@ -166,6 +166,17 @@ def sendMessageParallel(client, message, window_size):
     print("Mensagem enviada:", message)
     return message
 
+def checkInput(tamanho_maximo):
+    while True:
+        message = input("c: ")
+
+        if len(message) > tamanho_maximo:
+            print(f"Tamanho de pensagem estourado. Por favor escreva a mensagem até {tamanho_maximo}.")
+        else:
+            break
+    
+    return message
+    
 
 
 
