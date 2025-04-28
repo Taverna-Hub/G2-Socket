@@ -118,11 +118,14 @@ def reciveGBN(conn):
     fullmessage = []
     expectedSeq = 0
     while True:
+
         packages = conn.recv(1024).decode()
+        packages = packages.rstrip('\n')
+        packages = packages.strip('[]')
         print("=-"*30)
         print(packages)
-        packages = packages.strip()
-        packages_list = packages.split('\n')
+
+        packages_list = [ line for line in packages.split('\n') if line ]
         
 
 

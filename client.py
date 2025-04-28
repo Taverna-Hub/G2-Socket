@@ -142,7 +142,7 @@ def sendMessageParallel(client, message, window_size):
         # print(len(pkg_list))
         # print(pkg_list)
         batch = "".join(pkg_list)
-        client.sendall(batch.encode())
+        client.sendall(f"[{batch}]".encode())
 
         print("=-"*30)
         print(f"pacotes: \n{batch}")
@@ -214,7 +214,7 @@ def checkInput(tamanho_maximo):
 def main():
     client, tipo_operacao, tamanho_maximo, window_size = handShake()
 
-    print(f"\n A conversa entre você e o servidor começa aqui :D")
+    print(f"\n A conversa entre você e o servidor começa aqui!")
 
     while True:
         message = checkInput(tamanho_maximo)
