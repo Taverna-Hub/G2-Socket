@@ -29,7 +29,23 @@ PORT = 3001
 MAX_WINDOW_SIZE = 5
 TIMEOUT = 2
 
-def calcChecksum(data: bytes) -> int:
+def handleErrors():
+    while True:
+        error = int(input(
+            "\n[1] para simular perda de pacote\n"
+            "[2] para simular falha de integridade\n"
+            "[3] para continuar normalmente\n"
+            "Digite: "
+        ))
+
+        if error not in [1, 2, 3]:
+            print("\nDigite apenas [1], [2] ou [3]\n")
+        else:
+            break
+
+    return error
+
+def calcChecksum(data: bytes, isCorrupt: bool) -> int:
     if len(data) % 2 != 0:
         data += b"\x00"
 
@@ -40,11 +56,15 @@ def calcChecksum(data: bytes) -> int:
         checksum = (checksum & 0xFFFF) + (checksum >> 16)
 
     checksum = ~checksum & 0xFFFF
+
+    if isCorrupt:
+        return checksum + 1
+
     return checksum
 
 
-def mountPackage(message, seq):
-    checksum = calcChecksum(message.encode())
+def mountPackage(message, seq, isCorrupt: bool):
+    checksum = calcChecksum(message.encode(), isCorrupt)
     return Package(message=message, seq=seq, bytesData=len(message.encode("utf-8")), checksum=checksum)
 
 
@@ -78,17 +98,30 @@ def handShake():
 
 # sequential -> repetição seletiva
 def sendMessageSequential(client, message):
+    errorMode = handleErrors()
+
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     seq = 0
-    
+    tries = 0
 
     for chunk in chunks:
-        package = mountPackage(chunk, seq)
+        if errorMode not in [1, 3]:
+            package = mountPackage(chunk, seq, True)
+            integralPackage = mountPackage(chunk, seq, False)
+        else: 
+            package = mountPackage(chunk, seq, False)
+            
         expectedAck = seq + package.bytesData
 
         while True:
-            print(f"Enviando pacote: {package.seq}")
-            client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode())
+            if tries > 0 and integralPackage:
+                package = integralPackage
+                print(f"Enviando pacote: {package.seq}")
+                client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode())
+                tries = 0
+            else:
+                print(f"Enviando pacote: {package.seq}")
+                client.sendall(f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode())
 
             ready = select.select([client], [], [], TIMEOUT)
             print(f"tempo limite: {TIMEOUT}seg")
@@ -96,7 +129,6 @@ def sendMessageSequential(client, message):
             if ready[0]:
                 ack = client.recv(1024).decode()
                 print(f"ACK recebido: {ack}")
-
 
                 if ack.strip() == f"ACK = {expectedAck}":
                     print('ack correto:', ack)
@@ -108,6 +140,7 @@ def sendMessageSequential(client, message):
                     print("Recebido NAK, reenviando pacote...")
                     continue
             print(f"Nenhum ACK ou ACK incorreto. Reenviando pacote {package.seq}...")
+            tries += 1
 
         seq = expectedAck
 
@@ -117,6 +150,7 @@ def sendMessageSequential(client, message):
 
 #go bacn n -> 1 timer, 1 ack, 1 lista de coisas
 def sendMessageParallel(client, message, window_size):
+    errorMode = handleErrors()
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
 
     pending = {}
@@ -124,7 +158,12 @@ def sendMessageParallel(client, message, window_size):
     expectedAck = seq
 
     for chunk in chunks:
-        package = mountPackage(chunk, seq)
+        if errorMode not in [1, 3]:
+            package = mountPackage(chunk, seq, True)
+            integralPackage = mountPackage(chunk, seq, False)
+        else: 
+            package = mountPackage(chunk, seq, False)
+
         pending[seq] = f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n"    
         seq += package.bytesData
 
@@ -148,7 +187,6 @@ def sendMessageParallel(client, message, window_size):
         print(f"pacotes: \n{batch}")
         print(f"tempo limite: {TIMEOUT}seg")
         start_timer = time.perf_counter()
-
 
         try:
             last_pkg = pkg_list[-1]

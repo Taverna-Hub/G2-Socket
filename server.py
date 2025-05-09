@@ -59,8 +59,6 @@ def reciveSelective(conn):
     BUFFER = {}
     text_buffer = "" 
     while True:
-
-
         chunk = conn.recv(1024).decode()
         
         text_buffer += chunk
@@ -84,10 +82,8 @@ def reciveSelective(conn):
                 print(f"Sequência: {seq}")
                 print(f"Bytes Data: {bytesData}")
                 print(f"Checksum: {checksum}")
-
                 
                 isChecksumValid = validateChecksum(message.encode(), checksum)
-                
 
                 if isChecksumValid:
                     if seq == expectedSeq:
@@ -107,7 +103,6 @@ def reciveSelective(conn):
                     conn.sendall(f"NAK = {seq}\n".encode())
                     continue
 
-                
                 print(f"Enviando ACK = {ackNumber}")
                 conn.sendall(f"ACK = {ackNumber}\n".encode())
 
@@ -126,8 +121,6 @@ def reciveGBN(conn):
         print(packages)
 
         packages_list = [ line for line in packages.split('\n') if line ]
-        
-
 
         for chunk in packages_list:
             if chunk == "END":
@@ -154,8 +147,6 @@ def reciveGBN(conn):
                 print("Checksum inválido!")
                 # conn.sendall(f"NAK = {seq + 3}\n".encode())
                 continue
-
-        
 
         ackNumber = seq + bytesData
         print(f"Enviando ACK = {ackNumber}")
