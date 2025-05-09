@@ -150,7 +150,6 @@ def sendMessageSequential(client, message):
 
 #go bacn n -> 1 timer, 1 ack, 1 lista de coisas
 def sendMessageParallel(client, message, window_size):
-    errorMode = handleErrors()
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
 
     pending = {}
@@ -158,11 +157,7 @@ def sendMessageParallel(client, message, window_size):
     expectedAck = seq
 
     for chunk in chunks:
-        if errorMode not in [1, 3]:
-            package = mountPackage(chunk, seq, True)
-            integralPackage = mountPackage(chunk, seq, False)
-        else: 
-            package = mountPackage(chunk, seq, False)
+        package = mountPackage(chunk, seq, False)
 
         pending[seq] = f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n"    
         seq += package.bytesData
