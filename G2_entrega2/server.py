@@ -5,7 +5,8 @@ HOST = "localhost"
 PORT = 3001
 
 # Checklist
-# Resolver perda de pacote?
+# ○ Printar o timer
+# ○ Receber go-back-n corretamente
 
 @dataclass
 class Package:
@@ -58,6 +59,8 @@ def reciveSelective(conn):
     BUFFER = {}
     text_buffer = "" 
     while True:
+
+
         chunk = conn.recv(1024).decode()
         
         text_buffer += chunk
@@ -81,8 +84,10 @@ def reciveSelective(conn):
                 print(f"Sequência: {seq}")
                 print(f"Bytes Data: {bytesData}")
                 print(f"Checksum: {checksum}")
+
                 
                 isChecksumValid = validateChecksum(message.encode(), checksum)
+                
 
                 if isChecksumValid:
                     if seq == expectedSeq:
@@ -102,6 +107,7 @@ def reciveSelective(conn):
                     conn.sendall(f"NAK = {seq}\n".encode())
                     continue
 
+                
                 print(f"Enviando ACK = {ackNumber}")
                 conn.sendall(f"ACK = {ackNumber}\n".encode())
 
@@ -120,6 +126,8 @@ def reciveGBN(conn):
         print(packages)
 
         packages_list = [ line for line in packages.split('\n') if line ]
+        
+
 
         for chunk in packages_list:
             if chunk == "END":
@@ -130,28 +138,28 @@ def reciveGBN(conn):
             seq = int(seq.strip())
             bytesData = int(bytesData.strip())
             checksum = int(checksum.strip())
-            print("--"*30)
-
             print(f"mensagem: {message}")
             print(f"seq: {seq}")
             print(f"bytes: {bytesData}")
             print(f"checksum: {checksum}")
+            print("--"*30)
             isChecksumValid = validateChecksum(message.encode(), checksum)
 
-            if seq == expectedSeq:
-                if isChecksumValid:
-                    fullmessage.append(message)
-                    expectedSeq += bytesData  # Avança normalmente
-                else:
-                    print("Checksum inválido!")
-                    # 🔽 Interrompe o processamento da janela após o erro
-                    break
-            else:
-                print(f"Seq inesperado. Esperado: {expectedSeq}, recebido: {seq}")
-                break  # Não aceita fora de ordem
+            if isChecksumValid:
+                fullmessage.append(message)
+                expectedSeq = seq + bytesData
+                continue
 
-        print(f"Enviando ACK = {expectedSeq}")
-        conn.sendall(f"{expectedSeq}\n".encode())
+            else:
+                print("Checksum inválido!")
+                # conn.sendall(f"NAK = {seq + 3}\n".encode())
+                continue
+
+        
+
+        ackNumber = seq + bytesData
+        print(f"Enviando ACK = {ackNumber}")
+        conn.sendall(f"{ackNumber}\n".encode())
         
 
 
