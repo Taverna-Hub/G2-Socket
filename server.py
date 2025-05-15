@@ -2,11 +2,10 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3001
+PORT = 3002
 
 # Checklist
-# ○ Printar o timer
-# ○ Receber go-back-n corretamente
+# Resolver perda de pacote?
 
 @dataclass
 class Package:
