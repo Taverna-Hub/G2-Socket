@@ -19,9 +19,9 @@ class Package:
 
 
 HOST = "localhost"
-PORT = 3001
+PORT = 3000
 MAX_WINDOW_SIZE = 5
-TIMEOUT = 2
+TIMEOUT = 1
 
 def handleErrors():
     while True:
@@ -163,7 +163,7 @@ def sendMessageSequential(client, message):
 def sendMessageParallel(client, message, window_size):
     errorMode = 0
     errorPackage = -1
-
+    tries = 0
 
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
     
@@ -198,8 +198,7 @@ def sendMessageParallel(client, message, window_size):
         for key in keys[:window_size]:
             pkg_list.append(pending[key])
             
-        # print(len(pkg_list))
-        # print(pkg_list)
+        
         batch = "".join(pkg_list)
         client.sendall(f"[{batch}]".encode())
 
@@ -209,12 +208,10 @@ def sendMessageParallel(client, message, window_size):
         start_timer = time.perf_counter()
         tempo_decorrido = 0
 
-        if errorMode == 1:
-            time.sleep(3)
-            tempo_atual = time.perf_counter()
-            tempo_decorrido = tempo_atual - start_timer
-            print(f"Timer: {tempo_decorrido:.3f}s")
         
+        if errorMode == 1:
+            del pkg_list[errorPackage]
+        print(pkg_list)
         last_pkg = pkg_list[-1]
         last_seq = int(last_pkg.split('|')[1])
         last_bytes = int(last_pkg.split('|')[2])
@@ -227,16 +224,9 @@ def sendMessageParallel(client, message, window_size):
 
         tempo_atual = time.perf_counter()
         tempo_decorrido = tempo_atual - start_timer
-        if tempo_decorrido <= 2:
-            # last_pkg = pkg_list[-1]
-            # last_seq = int(last_pkg.split('|')[1])
-            # last_bytes = int(last_pkg.split('|')[2])
-            # expectedAck = last_seq + last_bytes
-
-            # ack = client.recv(1024).decode()
-            # ack = ack.strip('\n')
-
-            # print(f"ack esperado: {expectedAck}")
+        print(f"Timer: {tempo_decorrido:.3f}s")
+        if tempo_decorrido <= TIMEOUT:
+           
             print(f"ack recebido: {ack}")
 
             if expectedAck == int(ack):
@@ -262,9 +252,6 @@ def sendMessageParallel(client, message, window_size):
                 print('--'*10)
                 print(pending)
                 
-                #pega o ack do server
-                # coloca em uma lista oq ele quer + os seguintes
-                # envia novamente
         else:
             print("tempo limite exedido...")
             errorMode = 0
