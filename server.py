@@ -144,11 +144,11 @@ def reciveGBN(conn):
                     expectedSeq += bytesData  # Avança normalmente
                 else:
                     print("Checksum inválido!")
-                    # 🔽 Interrompe o processamento da janela após o erro
+                    print("repetindo requisição do: ", seq)
                     break
             else:
                 print(f"Seq inesperado. Esperado: {expectedSeq}, recebido: {seq}")
-                break  # Não aceita fora de ordem
+                break  
 
         print(f"Enviando ACK = {expectedSeq}")
         conn.sendall(f"{expectedSeq}\n".encode())

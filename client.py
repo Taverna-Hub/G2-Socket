@@ -35,9 +35,11 @@ def handleErrors():
         if error not in [1, 2, 3]:
             print("\nDigite apenas [1], [2] ou [3]\n")
         else:
+            packError = int(input("Indique o pacote em o erro deverá acontecer: "))
             break
+            
 
-    return error
+    return error, packError
 
 def calcChecksum(data: bytes, isCorrupt: bool) -> int:
     if len(data) % 2 != 0:
@@ -160,17 +162,23 @@ def sendMessageSequential(client, message):
 #go back n -> 1 timer, 1 ack, 1 lista de coisas
 def sendMessageParallel(client, message, window_size):
     errorMode = 0
-    if message != 'exit':
-        errorMode = handleErrors()
+    errorPackage = -1
+
 
     chunks = [message[i:i + 3] for i in range(0, len(message), 3)]
-
+    
+    if message != 'exit':
+        for c, chunk in enumerate(chunks):
+            print("pacote: ", c, "conteudo: ", chunk)
+        errorMode , errorPackage = handleErrors()
     pending = {}
     seq = 0
     expectedAck = seq
-
+    print("erroMode = ", errorMode)
     for i, chunk in enumerate(chunks):
-        if errorMode == 2 and i == 1:
+        print(i," = ", chunk, " = ", errorPackage)
+        if errorMode == 2 and i == errorPackage:
+            print("entrou")
             correct_package = mountPackage(chunk, seq, False)
             package = mountPackage(chunk, seq, True) # você pode mudar a condição para testar diferentes cenários
         else: 
