@@ -171,6 +171,7 @@ def sendMessageParallel(client, message, window_size):
         for c, chunk in enumerate(chunks):
             print("pacote: ", c, "conteudo: ", chunk)
         errorMode , errorPackage = handleErrors()
+
     pending = {}
     seq = 0
     expectedAck = seq
@@ -180,7 +181,7 @@ def sendMessageParallel(client, message, window_size):
         if errorMode == 2 and i == errorPackage:
             print("entrou")
             correct_package = mountPackage(chunk, seq, False)
-            package = mountPackage(chunk, seq, True) # você pode mudar a condição para testar diferentes cenários
+            package = mountPackage(chunk, seq, True) 
         else: 
             package = mountPackage(chunk, seq, False)
         
@@ -197,9 +198,21 @@ def sendMessageParallel(client, message, window_size):
 
         for key in keys[:window_size]:
             pkg_list.append(pending[key])
-            
+        
         
         batch = "".join(pkg_list)
+
+        if errorMode == 1:
+            error_seq = errorPackage * 3 
+            for i, pkg in enumerate(pkg_list):
+                seq_in_pkg = int(pkg.split('|')[1])
+                if seq_in_pkg == error_seq:
+                    print(f"Removendo pacote com seq {seq_in_pkg} (errorPackage {errorPackage})")
+                    del pkg_list[i]
+                    errorMode = 0
+                    batch = "".join(pkg_list)          
+                    break
+                
         client.sendall(f"[{batch}]".encode())
 
         print("=-"*30)
@@ -209,8 +222,6 @@ def sendMessageParallel(client, message, window_size):
         tempo_decorrido = 0
 
         
-        if errorMode == 1:
-            del pkg_list[errorPackage]
         print(pkg_list)
         last_pkg = pkg_list[-1]
         last_seq = int(last_pkg.split('|')[1])
@@ -248,7 +259,9 @@ def sendMessageParallel(client, message, window_size):
                     print(pending[key])
                     if int(key) < int(ack):
                         del pending[key]
-                pending[int(ack)] = f"{correct_package.message}|{correct_package.seq}|{correct_package.bytesData}|{correct_package.checksum}\n"
+                
+                if errorMode == 2:
+                    pending[int(ack)] = f"{correct_package.message}|{correct_package.seq}|{correct_package.bytesData}|{correct_package.checksum}\n"
                 print('--'*10)
                 print(pending)
                 
