@@ -4,13 +4,6 @@ import time
 from dataclasses import dataclass
 
 
-# Checklist
-# Perda de pacote ?
-# Falha de Integridade ?
-# Talvez repetir so pro GOBACKN
-# Printar checksum
-
-
 @dataclass
 class Package:
     message: str
@@ -24,27 +17,29 @@ PORT = 3000
 MAX_WINDOW_SIZE = 5
 TIMEOUT = 1
 
-
-def handleErrors():
+def handleErrors(max_packages: int):
     while True:
-        error = int(
-            input(
+        try:
+            mode = int(input(
                 "\n[1] para simular perda de pacote\n"
                 "[2] para simular falha de integridade\n"
                 "[3] para continuar normalmente\n"
                 "Digite: "
-            )
-        )
-
-        if error not in [1, 2, 3]:
-            print("\nDigite apenas [1], [2] ou [3]\n")
-        else:
-            packError = int(input("Indique o pacote em o erro deverá acontecer: "))
-            break
-
-    return error, packError
-
-
+            ))
+            if mode not in (1, 2, 3):
+                raise ValueError
+            if mode in (1, 2):
+                pkg = int(input("Indique o índice do pacote (0 a {}): ".format(max_packages - 1)))
+                if not (0 <= pkg < max_packages):
+                    print(f"Pacote fora do intervalo 0-{max_packages-1}.")
+                    continue
+            else:
+                pkg = -1
+            return mode, pkg
+        except ValueError:
+            print("Entrada inválida, tente novamente.")
+# ===========================================
+#
 def calcChecksum(data: bytes, isCorrupt: bool) -> int:
     if len(data) % 2 != 0:
         data += b"\x00"
@@ -61,8 +56,8 @@ def calcChecksum(data: bytes, isCorrupt: bool) -> int:
         return checksum + 1
 
     return checksum
-
-
+# ===========================================
+#
 def mountPackage(message, seq, isCorrupt: bool):
     checksum = calcChecksum(message.encode(), isCorrupt)
     return Package(
@@ -71,15 +66,16 @@ def mountPackage(message, seq, isCorrupt: bool):
         bytesData=len(message.encode("utf-8")),
         checksum=checksum,
     )
-
-
+# ===========================================
+#
 def handShake():
+    print("\n🔌 Iniciando handshake com o servidor...\n")
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((HOST, PORT))
     client.settimeout(TIMEOUT)
     print("Escolha o modo de envio:")
-    print("[1] - Sequencial")
-    print("[2] - Em lotes \n")
+    print("[1] - Repetição Seletiva")
+    print("[2] - Em lotes (Go-Back-N) \n")
     # sequencial -> repetição seletiva | em lotes -> go back n
     while True:
         tipo_operacao = input("Digite o modo escolhido: ")
@@ -97,94 +93,101 @@ def handShake():
     client.sendall(f"{tipo_operacao},{tamanho_maximo},{window_size}".encode())
 
     resposta = client.recv(1024).decode()
-    print(f"Resposta do servidor: {resposta}")
+    print(f"Resposta do servidor: {resposta}\n")
+    print("✅ Handshake concluído!\n")
 
     return client, tipo_operacao, int(tamanho_maximo), int(window_size)
-
-
+# ===========================================
+#
 # sequential -> repetição seletiva
-def sendMessageSequential(client, message):
+def sendMessageSequential(client: socket.socket, message: str):
     errorMode = 0
     errorPackage = -1
-    countPackage = 0
 
     chunks = [message[i : i + 3] for i in range(0, len(message), 3)]
-    seq = 0
-    tries = 0
-
+    
+    print("\n")
     if message != "exit":
+        print("📦 Dividindo mensagem em pacotes...")
         for c, chunk in enumerate(chunks):
-            print("pacote: ", c, "conteudo: ", chunk)
-        errorMode, errorPackage = handleErrors()
+            print(f"🔹 Pacote {c}: '{chunk}'")
+        errorMode, errorPackage = handleErrors(len(chunks))
+    
+    print("🚀 Enviando pacotes ao servidor...")
 
-    for chunk in chunks:
-        if errorMode == 2 and errorPackage == countPackage:
-            package = mountPackage(chunk, seq, True)
+    seq = 0
+    for i, chunk in enumerate(chunks):
+        tries = 0
+        integralPackage = None
+
+        isCorrupt = (errorMode == 2 and i == errorPackage and tries == 0)
+        package = mountPackage(chunk, seq, isCorrupt)
+        if isCorrupt:
             integralPackage = mountPackage(chunk, seq, False)
-        else:
-            package = mountPackage(chunk, seq, False)
 
         expectedAck = seq + package.bytesData
-        countPackage += 1
 
         while True:
-            print("-" * 30)
-            if tries > 0 and integralPackage:
-                package = integralPackage
-                print(f"Enviando pacote: {package.seq}")
-                client.sendall(
-                    f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode()
-                )
-                tries = 0
+
+            toSend = integralPackage if (tries > 0 and integralPackage) else package
+            
+            print("\n" + "—" * 40)
+            print(f"⏱️  Tempo limite até o Timeout: {TIMEOUT} second(s)")
+
+            if errorMode == 1 and i == errorPackage and tries == 0:
+                print(f"🚫  Simulando perda do pacote seq={toSend.seq} (tentativa {tries + 1})")
             else:
-                print(f"Enviando pacote: {package.seq}")
-                client.sendall(
-                    f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n".encode()
-                )
-
-            print(f"tempo limite: {TIMEOUT}seg")
-            start_timer = time.perf_counter()
-            tempo_decorrido = 0
-
-            if errorMode == 1:
-                time.sleep(3)
-                tempo_atual = time.perf_counter()
-                tempo_decorrido = tempo_atual - start_timer
-                print(f"Timer: {tempo_decorrido:.3f}s")
-
-            if tempo_decorrido < 2:
-                ack = client.recv(1024).decode()
-                print(f"ACK recebido do server: {ack}")
-
-                if ack.strip() == f"ACK = {expectedAck}":
-                    print("ACK correto:", ack)
-                    tempo_atual = time.perf_counter()
-                    tempo_decorrido = tempo_atual - start_timer
-                    print(f"Timer: {tempo_decorrido:.3f}s")
-                    break
-                elif ack == f"NAK = {seq}":
-                    print("Recebido NAK, reenviando pacote...")
-                    continue
-            else:
-                print(
-                    f"Nenhum ACK ou ACK incorreto. Reenviando pacote {package.seq}..."
-                )
-                client.recv(1024).decode()
-
-            if errorMode == 2:
+                tag = " [CORROMPIDO]" if (toSend is package and isCorrupt) else ""
+                print(f"📤  Enviando pacote: {tag}")
+                print("-=-"*5)
+                print(f"Mensagem: {toSend.message} ")
+                print(f"Seq: {toSend.seq}")
+                print(f"Bytes: {toSend.bytesData} ")
+                print(f"CheckSum: {toSend.checksum} ")
+                print(f"(tentativa {tries + 1})")
+                print("-=-"*5)
+                # print(f"Enviando pacote \n➡️  seq={toSend.seq} \n(tentativa {tries + 1}){tag}")
+                
+                client.sendall(f"{toSend.message}|{toSend.seq}|{toSend.bytesData}|{toSend.checksum}\n".encode())
+            
+            client.settimeout(TIMEOUT)
+            start_time = time.perf_counter()
+            try:
+                data = client.recv(1024).decode().strip()
+                elapsed = time.perf_counter() - start_time
+                print(f"✅  Recebido: '{data}' (em {elapsed:.3f}s)")
+            except socket.timeout:
+                elapsed = time.perf_counter() - start_time
+                print(f"⚠️  Timeout após {elapsed:.3f}s para seq={toSend.seq}. Retransmitindo...")
                 tries += 1
+                continue  
 
-            errorMode = 0
+            if data == f"ACK = {expectedAck}":
+                print(f"🎉  ACK correto {data}. Avançando seq.")
+                if i == errorPackage:
+                    errorMode = 0
+                break  
+
+            elif data == f"NAK = {package.seq}":
+                print(f"🔄  NAK recebido para seq={package.seq}. Retransmitindo...")
+                tries += 1
+                continue  
+
+            # else desnecessário - remover após revisão
+            else:
+                print(f"❓ Resposta inesperada '{data}'. Retransmitindo...")
+                tries += 1
+                continue  
 
         seq = expectedAck
 
     client.sendall("END\n".encode())
-    print("Mensagem enviada:", message)
+    print("✉️  Mensagem enviada completamente.\n")
     return message
-
-
+# ===========================================
+#
 # go back n -> 1 timer, 1 ack, 1 lista de coisas
-def sendMessageParallel(client, message, window_size):
+def sendMessageParallel(client: socket.socket, message: str, window_size: int):
     errorMode = 0
     errorPackage = -1
     tries = 0
@@ -192,64 +195,84 @@ def sendMessageParallel(client, message, window_size):
     chunks = [message[i : i + 3] for i in range(0, len(message), 3)]
 
     if message != "exit":
+        print("📦 Dividindo mensagem em pacotes...")
         for c, chunk in enumerate(chunks):
-            print("pacote: ", c, "conteudo: ", chunk)
-        errorMode, errorPackage = handleErrors()
+            print(f"🔹 Pacote {c}: '{chunk}'")
+        errorMode, errorPackage = handleErrors(len(chunks))
 
     pending = {}
     seq = 0
     expectedAck = seq
     print("erroMode = ", errorMode)
+
     for i, chunk in enumerate(chunks):
-        print(i, " = ", chunk, " = ", errorPackage)
         if errorMode == 2 and i == errorPackage:
-            print("entrou")
-            correct_package = mountPackage(chunk, seq, False)
+            correctPackage = mountPackage(chunk, seq, False)
             package = mountPackage(chunk, seq, True)
         else:
             package = mountPackage(chunk, seq, False)
 
+        # Forma mais elegante
+        # isCorrupt = (mode == 2 and idx == error_pkg and tries == 0)
+        # package = mountPackage(chunk, seq, isCorrupt)
+        # if isCorrupt:
+        #     correctPackage = mountPackage(chunk, seq, False)
+
+        expectedAck = seq + package.bytesData
+
         pending[seq] = (
             f"{package.message}|{package.seq}|{package.bytesData}|{package.checksum}\n"
         )
+
         seq += package.bytesData
+
+    print(f"✅ Total de pacotes pendentes: {len(pending)}")
 
     while True:
         if not pending:
             break
 
-        pkg_list = []
+        packageList = []
         keys = list(pending.keys())
         keys.sort()
 
         for key in keys[:window_size]:
-            pkg_list.append(pending[key])
+            packageList.append(pending[key])
 
-        batch = "".join(pkg_list)
+        batch = "".join(packageList)
 
         if errorMode == 1:
-            error_seq = errorPackage * 3
-            for i, pkg in enumerate(pkg_list):
-                seq_in_pkg = int(pkg.split("|")[1])
-                if seq_in_pkg == error_seq:
+            errorSeq = errorPackage * 3
+            print(f"🚫 Simulando perda do pacote seq={errorSeq} nesta janela")
+            for i, pkg in enumerate(packageList):
+                seqInPackage = int(pkg.split("|")[1])
+                if seqInPackage == errorSeq:
                     print(
-                        f"Removendo pacote com seq {seq_in_pkg} (errorPackage {errorPackage})"
+                        f"❌ Removendo pacote com seq {seqInPackage} (errorPackage {errorPackage})"
                     )
-                    del pkg_list[i]
+                    del packageList[i]
                     errorMode = 0
-                    batch = "".join(pkg_list)
+                    batch = "".join(packageList)
                     break
 
+        print("—" * 40)
+        print("🚀 Enviando pacotes ao servidor...")
+        print("📦 Pacotes enviados:")
+        for p in packageList:
+            print(f"➡️  {p.strip()}")
+
+        # print(f"⏱️ Timeout definido para {TIMEOUT}s")
         client.sendall(f"[{batch}]".encode())
 
-        print("=-" * 30)
-        print(f"pacotes: \n{batch}")
-        print(f"tempo limite: {TIMEOUT}seg")
+        print("\n")
+        # print("=-" * 30)
+        # print(f"pacotes: \n{batch}")
+        print(f"⏱️ Aguardando ACK (timeout: {TIMEOUT}s)...")
         start_timer = time.perf_counter()
-        tempo_decorrido = 0
+        eslapsedTime = 0
 
-        print(pkg_list)
-        last_pkg = pkg_list[-1]
+        # print(packageList)
+        last_pkg = packageList[-1]
         last_seq = int(last_pkg.split("|")[1])
         last_bytes = int(last_pkg.split("|")[2])
         expectedAck = last_seq + last_bytes
@@ -257,52 +280,53 @@ def sendMessageParallel(client, message, window_size):
         ack = client.recv(1024).decode()
         ack = ack.strip("\n")
 
-        print(f"ack esperado: {expectedAck}")
+        print(f"⏲️ Tempo decorrido: {eslapsedTime:.3f}s")
+        print(f"✅ ACK esperado: {expectedAck} | Recebido: {ack}")
 
         tempo_atual = time.perf_counter()
-        tempo_decorrido = tempo_atual - start_timer
-        print(f"Timer: {tempo_decorrido:.3f}s")
-        if tempo_decorrido <= TIMEOUT:
+        eslapsedTime = tempo_atual - start_timer
+        print(f"Timer: {eslapsedTime:.3f}s")
+        if eslapsedTime <= TIMEOUT:
 
             print(f"ack recebido: {ack}")
 
             if expectedAck == int(ack):
-                print("ack correto:", ack)
+                print(f"👍 ACK correto! {ack}")
                 tempo_atual = time.perf_counter()
-                tempo_decorrido = tempo_atual - start_timer
-                print(f"Timer: {tempo_decorrido:.3f}s")
+                eslapsedTime = tempo_atual - start_timer
+                print(f"Timer: {eslapsedTime:.3f}s")
 
                 for key in keys[:window_size]:
                     if key in pending:
                         del pending[key]
             else:
-                print("ACK incorreto, retransmitindo...")
-                print(pending)
+                print("⚠️ ACK incorreto, retransmitindo pacotes...")
+                # print(pending)
                 for key in keys[:window_size]:
                     if key == ack:
                         break
-                    print("--" * 10)
-                    print(pending[key])
+                    # print("--" * 10)
+                    # print(pending[key])
                     if int(key) < int(ack):
                         del pending[key]
 
                 if errorMode == 2:
                     pending[int(ack)] = (
-                        f"{correct_package.message}|{correct_package.seq}|{correct_package.bytesData}|{correct_package.checksum}\n"
+                        f"{correctPackage.message}|{correctPackage.seq}|{correctPackage.bytesData}|{correctPackage.checksum}\n"
                     )
                 print("--" * 10)
-                print(pending)
+                # print(pending)
 
         else:
-            print("tempo limite exedido...")
+            print("⛔ Tempo limite excedido, retransmitindo...")
             errorMode = 0
             continue
 
     client.sendall("END\n".encode())
-    print("Mensagem enviada:", message)
+    print(f"✉️  Transmissão finalizada. Mensagem: '{message}'\n")
     return message
-
-
+# ===========================================
+#
 def checkInput(tamanho_maximo):
     while True:
         print("--" * 30)
@@ -310,15 +334,14 @@ def checkInput(tamanho_maximo):
         message = input("c: ")
 
         if len(message) > tamanho_maximo:
-            print(
-                f"Tamanho de pensagem estourado. Por favor escreva a mensagem até {tamanho_maximo}.\n"
-            )
+            print(f"⚠️  Entrada inválida — máximo permitido: {tamanho_maximo} caracteres.\n")
+
         else:
             break
 
     return message
-
-
+# ===========================================
+#
 def main():
     client, tipo_operacao, tamanho_maximo, window_size = handShake()
 
@@ -331,10 +354,11 @@ def main():
         elif tipo_operacao == "2":
             message = sendMessageParallel(client, message, window_size)
         if message == "exit":
+            print("🔌 Conexão encerrada. Até a próxima!")
             break
 
     client.close()
-
-
+# ===========================================
+#
 if __name__ == "__main__":
     main()
