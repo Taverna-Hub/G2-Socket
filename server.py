@@ -2,7 +2,7 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3001
+PORT = 3000
 
 
 @dataclass

@@ -1,6 +1,8 @@
 import socket
 import select
 import time
+import random
+from random import randint
 from dataclasses import dataclass
 
 
@@ -13,7 +15,7 @@ class Package:
 
 
 HOST = "localhost"
-PORT = 3001
+PORT = 3000
 MAX_WINDOW_SIZE = 5
 TIMEOUT = 1
 
@@ -39,31 +41,6 @@ def chooseErrorMode(max_packages: int):
             return mode, pkg
         except ValueError:
             print("Entrada inválida, tente novamente.") 
-
-def handleErrors(batch: list[bytes], error_type: int, pgk_idx: int) -> list[bytes]:
-    
-    if error_type == 1:
-        # perder somente o pacote pkg_idx
-        return [p for i,p in enumerate(batch) if i != pkg_idx]
-    elif error_type == 2:
-        # corrompe somente o pacote pkg_idx
-        corrupted = bytearray(batch[pkg_idx])
-        corrupted[0] ^= 0xFF
-        new_batch = batch.copy()
-        new_batch[pkg_idx] = bytes(corrupted)
-        return new_batch
-    elif error_type == 3:
-        # swap: troca pacote pkg_idx com outro aleatório
-        n = len(batch)
-        if 0 <= pkg_idx < n and n >= 2:
-            import random
-            j = random.choice([i for i in range(n) if i != pkg_idx])
-            batch[pkg_idx], batch[j] = batch[j], batch[pkg_idx]
-        return batch
-    else:
-        # modo normal
-        return batch
-
 # ===========================================
 #
 def calcChecksum(data: bytes, isCorrupt: bool) -> int:
@@ -156,7 +133,6 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
             out_of_order_seq = errorPackage * 3
             if out_of_order_seq in window_keys:
                 if pending[out_of_order_seq]['tries'] == 0:
-                    from random import randint
                     other_keys = [k for k in window_keys if k != out_of_order_seq]
                     insert_at = randint(0, len(other_keys))
                     window_keys = other_keys[:insert_at] + [out_of_order_seq] + other_keys[insert_at:]
@@ -226,7 +202,6 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
     client.sendall("END\n".encode())
     print("✉️  Mensagem enviada completamente.\n")
     return message
-
 # ===========================================
 #
 def sendGBN(client: socket.socket, message: str, window_size: int):
@@ -242,6 +217,8 @@ def sendGBN(client: socket.socket, message: str, window_size: int):
     pending = {}
     seq = 0
     expectedAck = seq
+    error_seq = None
+    swap_done = False
     print("erroMode = ", errorMode)
 
     for i, chunk in enumerate(chunks):
@@ -249,6 +226,8 @@ def sendGBN(client: socket.socket, message: str, window_size: int):
             correctPackage = mountPackage(chunk, seq, False)
             package = mountPackage(chunk, seq, True)
         else:
+            if errorMode == 3 and i == errorPackage:
+                error_seq = seq     
             package = mountPackage(chunk, seq, False)
 
         expectedAck = seq + package.bytesData
@@ -272,11 +251,25 @@ def sendGBN(client: socket.socket, message: str, window_size: int):
         for key in keys[:window_size]:
             packageList.append(pending[key])
 
-        windowKeys = sorted(pending)[:window_size]
-        
+
+        if errorMode == 3:
+            window = sorted(pending)[:window_size]
+            send_order = window.copy()
+
+            if not swap_done and error_seq in send_order and len(send_order) > 1:
+                idx = send_order.index(error_seq)
+                rnd = randint(0, len(send_order)-2)
+                other = rnd if rnd < idx else rnd + 1
+                send_order[idx], send_order[other] = send_order[other], send_order[idx]
+                print(f"🚨 Simulando troca de ordem do pacote: trocando seq={error_seq} (pos {idx}) com seq={send_order[idx]} (pos {other})")
+                swap_done = True
+        else: 
+            send_order = keys[:window_size]
+
         batchLines = []
-        for k in windowKeys:
+        for k in send_order:
             if errorMode == 1 and k == errorPackage * 3:
+                print("—" * 40)
                 print(f"🚫 Simulando perda do pacote seq={k} nesta janela")
                 errorMode = 0
                 continue
@@ -335,6 +328,11 @@ def sendGBN(client: socket.socket, message: str, window_size: int):
                     pending[int(ack)] = (
                         f"{correctPackage.message}|{correctPackage.seq}|{correctPackage.bytesData}|{correctPackage.checksum}\n"
                     )
+
+                elif errorMode == 3 and int(ack) < expectedAck:
+                    print(f"🔄 ACK menor ({ack}) em modo 3, interrompendo simulação")
+                    errorMode = 0
+
                 print("--" * 10)
 
         else:
