@@ -227,26 +227,21 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
         for key in keys[:window_size]:
             packageList.append(pending[key])
 
-        batch = "".join(packageList)
-
-        if errorMode == 1:
-            errorSeq = errorPackage * 3
-            print(f"🚫 Simulando perda do pacote seq={errorSeq} nesta janela")
-            for i, pkg in enumerate(packageList):
-                seqInPackage = int(pkg.split("|")[1])
-                if seqInPackage == errorSeq:
-                    print(
-                        f"❌ Removendo pacote com seq {seqInPackage} (errorPackage {errorPackage})"
-                    )
-                    del packageList[i]
-                    errorMode = 0
-                    batch = "".join(packageList)
-                    break
+        windowKeys = sorted(pending)[:window_size]
+        
+        batchLines = []
+        for k in windowKeys:
+            if errorMode == 1 and k == errorPackage * 3:
+                print(f"🚫 Simulando perda do pacote seq={k} nesta janela")
+                errorMode = 0
+                continue
+            batchLines.append(pending[k])
+        batch = "".join(batchLines)
 
         print("—" * 40)
         print("🚀 Enviando pacotes ao servidor...")
         print("📦 Pacotes enviados:")
-        for p in packageList:
+        for p in batchLines:
             print(f"➡️  {p.strip()}")
 
         client.sendall(f"[{batch}]".encode())
@@ -286,7 +281,7 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
             else:
                 print("⚠️ ACK incorreto, retransmitindo pacotes...")
                 for key in keys[:window_size]:
-                    if key == ack:
+                    if key == int(ack):
                         break
                     if int(key) < int(ack):
                         del pending[key]
