@@ -15,7 +15,7 @@ class Package:
 
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 MAX_WINDOW_SIZE = 5
 TIMEOUT = 1
 
@@ -117,10 +117,14 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
 
     pending = {}
     seq = 0
+    error_seq = None
+
     for i, chunk in enumerate(chunks):
         isCorrupt = (errorMode == 2 and i == errorPackage)
         pkg = mountPackage(chunk, seq, isCorrupt)
         integ = mountPackage(chunk, seq, False) if isCorrupt else None
+        if errorMode == 3 and i == errorPackage:
+            error_seq = seq 
         pending[seq] = { 'pkg': pkg, 'integ': integ, 'start': None, 'tries': 0 }
         seq += pkg.bytesData
 
@@ -129,13 +133,13 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
 
         window_keys = sorted(pending.keys())[:window_size]
 
-        if errorMode == 3:
-            out_of_order_seq = errorPackage * 3
-            if out_of_order_seq in window_keys:
-                if pending[out_of_order_seq]['tries'] == 0:
-                    other_keys = [k for k in window_keys if k != out_of_order_seq]
-                    insert_at = randint(0, len(other_keys))
-                    window_keys = other_keys[:insert_at] + [out_of_order_seq] + other_keys[insert_at:]
+        if errorMode == 3 and error_seq in window_keys:
+            if pending[error_seq]['tries'] == 0:
+                other_keys = [k for k in window_keys if k != error_seq]
+                insert_at = randint(0, len(other_keys))
+                window_keys = other_keys[:insert_at] + [error_seq] + other_keys[insert_at:]
+                print("="*10)
+                print(f"🚨 Simulando troca de ordem do pacote seq={error_seq} para posição {insert_at}")
 
         for s in window_keys:
             info = pending[s]
@@ -174,7 +178,18 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
                 if not resp:
                     continue
                 print(f"✅ Recebido do servidor: '{resp}'")
-                if resp.startswith("ACK ="):
+
+                if resp.startswith("REACK ="):
+                    reack_seq = int(resp.split('=')[1].strip())
+                    print(f"🔀 REACK recebido para seq={reack_seq}. Ordem errada detectada.")
+                    if errorMode == 3 and reack_seq == error_seq:
+                        print(f"✅ Desligando modo 3 e corrigindo ordem do seq={reack_seq}.")
+                        errorMode = 0
+                    if reack_seq in pending:
+                        pending[reack_seq]['start'] = None
+                    continue
+
+                elif resp.startswith("ACK ="):
                     try:
                         ack_num = int(resp.split('=')[1].strip())
                         for s in list(pending):
@@ -190,17 +205,19 @@ def sendSelective(client: socket.socket, message: str, window_size: int):
                         print(f"🔄 NAK recebido para seq={nak_seq}. Irá retransmitir na próxima janela.")
                         if nak_seq in pending:
                             pending[nak_seq]['start'] = None
-                        if errorMode == 3 and nak_seq == errorPackage * 3:
+
+                        if errorMode == 3 and nak_seq == error_seq:
                             print(f"✅ Corrigindo ordem do pacote seq={nak_seq} após NAK.")
                             errorMode = 0
                     except ValueError:
                         print(f"⚠️ Erro ao interpretar NAK: '{resp}'")
+
         else:
             print("🔍 Pendentes atuais na janela:", list(pending.keys()))
             print(f"⚠️ Timeout de ACKs. Retransmitindo pacotes pendentes na próxima janela.")
 
     client.sendall("END\n".encode())
-    print("✉️  Mensagem enviada completamente.\n")
+    print(f"✉️  Mensagem enviada completamente. Mensagem: {message}\n")
     return message
 # ===========================================
 #

@@ -2,7 +2,7 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 
 
 @dataclass
@@ -101,6 +101,9 @@ def reciveSelective(conn):
                     elif seq > expectedSeq:
                         BUFFER[seq] = message
                         print(f"🔄 Fora de ordem. Buffering pacote seq={seq}")
+                        print(f"📤 Enviando REACK = {seq}\n")
+                        conn.sendall(f"REACK = {seq}\n".encode())
+                        continue
                     ackNumber = seq + bytesData 
                     print(f"📤 Enviando ACK = {ackNumber}\n")
                     conn.sendall(f"ACK = {ackNumber}\n".encode())
