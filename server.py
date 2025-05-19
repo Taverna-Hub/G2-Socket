@@ -17,11 +17,9 @@ def handShake():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((HOST, PORT))
     server.listen()
-    # print("Aguardando conexão...")
     print(f"🛎️  Servidor ouvindo na porta {PORT}...")
 
     conn, addr = server.accept()
-    # print(f"Conectado por {addr}")
     print(f"👤 Cliente conectado: {addr}")
 
     dados = conn.recv(1024).decode()
@@ -80,7 +78,6 @@ def reciveSelective(conn):
                 seq = int(seq.strip())
                 bytesData = int(bytesData.strip())
                 checksum = int(checksum.strip())
-                # print("=-"*30)
                 print(f"   📄 Conteúdo : {message}")
                 print(f"   🔢 Sequência: {seq}")
                 print(f"   📦 Tamanho  : {bytesData} bytes")
@@ -113,8 +110,6 @@ def reciveSelective(conn):
                     conn.sendall(f"NAK = {seq}\n".encode())
                     continue
 
-                # print(f"Enviando ACK = {ackNumber}")
-                # conn.sendall(f"ACK = {ackNumber}\n".encode())
 
             except Exception as e:
                 print(f"❌ Erro ao processar linha '{line}'. Detalhes: {e}")
@@ -128,8 +123,6 @@ def reciveGBN(conn):
         packages = conn.recv(1024).decode()
         packages = packages.rstrip('\n')
         packages = packages.strip('[]')
-        # print("=-"*30)
-        # print(packages)
         print("\n" + "="*60)
         print("📥 Pacotes brutos recebidos:")
         for line in packages.split('\n'):
@@ -163,8 +156,6 @@ def reciveGBN(conn):
                     print(f"✅ Pacote na ordem. Novo expectedSeq = {expectedSeq}")
                 else:
                     print(f"⚠️  Checksum inválido para seq={seq}. Solicitando retransmissão...")
-                    # print("Checksum inválido!")
-                    # print("repetindo requisição do: ", seq)
                     break
             else:
                 print(f"❗ Fora de ordem. Esperado={expectedSeq}, recebido={seq}. Solicitando retransmissão.")

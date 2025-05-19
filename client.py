@@ -84,9 +84,10 @@ def handShake():
             continue
         else:
             break
-    print(f"Você escolheu o modo {tipo_operacao}\n")
+    print(f"Você escolheu o modo {tipo_operacao} [{"Repetição Seletiva" if tipo_operacao == "1" else "Go-Back-n"}]\n")
     tamanho_maximo = input("Digite o tamanho máximo: ")
     window_size = int(input("Digite o tamanho da janela: "))
+    print("\n")
     if window_size > MAX_WINDOW_SIZE:
         print(f"Janela máxima é {MAX_WINDOW_SIZE}, ajustando para {MAX_WINDOW_SIZE}...")
         window_size = MAX_WINDOW_SIZE
@@ -146,7 +147,6 @@ def sendMessageSequential(client: socket.socket, message: str):
                 print(f"CheckSum: {toSend.checksum} ")
                 print(f"(tentativa {tries + 1})")
                 print("-=-"*5)
-                # print(f"Enviando pacote \n➡️  seq={toSend.seq} \n(tentativa {tries + 1}){tag}")
                 
                 client.sendall(f"{toSend.message}|{toSend.seq}|{toSend.bytesData}|{toSend.checksum}\n".encode())
             
@@ -170,12 +170,6 @@ def sendMessageSequential(client: socket.socket, message: str):
 
             elif data == f"NAK = {package.seq}":
                 print(f"🔄  NAK recebido para seq={package.seq}. Retransmitindo...")
-                tries += 1
-                continue  
-
-            # else desnecessário - remover após revisão
-            else:
-                print(f"❓ Resposta inesperada '{data}'. Retransmitindo...")
                 tries += 1
                 continue  
 
@@ -211,12 +205,6 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
             package = mountPackage(chunk, seq, True)
         else:
             package = mountPackage(chunk, seq, False)
-
-        # Forma mais elegante
-        # isCorrupt = (mode == 2 and idx == error_pkg and tries == 0)
-        # package = mountPackage(chunk, seq, isCorrupt)
-        # if isCorrupt:
-        #     correctPackage = mountPackage(chunk, seq, False)
 
         expectedAck = seq + package.bytesData
 
@@ -261,17 +249,13 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
         for p in packageList:
             print(f"➡️  {p.strip()}")
 
-        # print(f"⏱️ Timeout definido para {TIMEOUT}s")
         client.sendall(f"[{batch}]".encode())
 
         print("\n")
-        # print("=-" * 30)
-        # print(f"pacotes: \n{batch}")
         print(f"⏱️ Aguardando ACK (timeout: {TIMEOUT}s)...")
         start_timer = time.perf_counter()
         eslapsedTime = 0
 
-        # print(packageList)
         last_pkg = packageList[-1]
         last_seq = int(last_pkg.split("|")[1])
         last_bytes = int(last_pkg.split("|")[2])
@@ -301,12 +285,9 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
                         del pending[key]
             else:
                 print("⚠️ ACK incorreto, retransmitindo pacotes...")
-                # print(pending)
                 for key in keys[:window_size]:
                     if key == ack:
                         break
-                    # print("--" * 10)
-                    # print(pending[key])
                     if int(key) < int(ack):
                         del pending[key]
 
@@ -315,7 +296,6 @@ def sendMessageParallel(client: socket.socket, message: str, window_size: int):
                         f"{correctPackage.message}|{correctPackage.seq}|{correctPackage.bytesData}|{correctPackage.checksum}\n"
                     )
                 print("--" * 10)
-                # print(pending)
 
         else:
             print("⛔ Tempo limite excedido, retransmitindo...")
