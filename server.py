@@ -2,7 +2,7 @@ import socket
 from dataclasses import dataclass
 
 HOST = "localhost"
-PORT = 3000
+PORT = 3001
 
 
 @dataclass
@@ -67,7 +67,7 @@ def reciveSelective(conn):
 
             if line == "END":
                 print("\n" + "=-" * 30)
-                print("🎉 Fim da transmissão. Mensagem completa recebida:\n  ")
+                print(f"🎉 Fim da transmissão.{"Mensagem completa recebida:" if ''.join(fullmessage) != "exit" else ""}\n  ")
                 return ''.join(fullmessage)
 
             print("\n" + "—" * 40)
@@ -186,6 +186,7 @@ def main():
         
         if message:
             print(message)
+            print("\n" + "=-" * 30)
 
     conn.close()
     server.close()
